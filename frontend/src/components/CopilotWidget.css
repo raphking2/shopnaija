@@ -1,0 +1,43 @@
+.copilot-widget {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    z-index: 1000;
+    font-family: Arial, sans-serif;
+  }
+  
+  .widget-header {
+    background-color: #0078d4;
+    color: white;
+    padding: 12px 20px;
+    border-radius: 25px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+    transition: all 0.3s ease;
+  }
+  
+  .widget-header:hover {
+    background-color: #106ebe;
+  }
+  
+  .toggle-icon {
+    margin-left: 10px;
+    font-size: 18px;
+  }
+  
+  .widget-iframe {
+    width: 350px;
+    height: 500px;
+    border: none;
+    border-radius: 10px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    margin-top: 10px;
+  }
+  
+  /* Animation when opening */
+  .copilot-widget.open .widget-header {
+    border-radius: 10px 10px 0 0;
+  }

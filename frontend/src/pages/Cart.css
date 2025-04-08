@@ -1,0 +1,131 @@
+/* Ensure the wrapper takes the full width and overrides global resets */
+.pd-wrapper {
+    width: 100% !important;
+    padding: 20px !important;
+    box-sizing: border-box !important;
+    background-color: #f9f9f9 !important;
+    display: flex !important;
+    justify-content: center !important;
+  }
+  
+  /* Centered content container with max width */
+  .pd-content {
+    width: 100% !important;
+    max-width: 1200px !important;
+    background: #fff !important;
+    padding: 20px !important;
+    box-sizing: border-box !important;
+    border-radius: 8px !important;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1) !important;
+  }
+  
+  /* Back button styling */
+  .pd-back-btn {
+    background: transparent !important;
+    border: none !important;
+    color: #008751 !important;
+    font-size: 1rem !important;
+    cursor: pointer !important;
+    margin-bottom: 20px !important;
+  }
+  
+  /* Grid layout for image and info */
+  .pd-grid {
+    display: flex !important;
+    flex-direction: row !important;
+    gap: 40px !important;
+  }
+  
+  /* Image container */
+  .pd-image-container {
+    flex: 1 !important;
+    display: flex !important;
+    justify-content: center !important;
+    align-items: center !important;
+  }
+  
+  .pd-image {
+    width: 100% !important;
+    max-width: 500px !important;
+    border-radius: 8px !important;
+    object-fit: cover !important;
+  }
+  
+  /* Info section */
+  .pd-info {
+    flex: 1 !important;
+    display: flex !important;
+    flex-direction: column !important;
+  }
+  
+  .pd-title {
+    font-size: 2rem !important;
+    margin-bottom: 10px !important;
+  }
+  
+  .pd-price {
+    font-size: 1.5rem !important;
+    color: #008751 !important;
+    margin-bottom: 20px !important;
+  }
+  
+  .pd-description {
+    font-size: 1rem !important;
+    line-height: 1.5 !important;
+    margin-bottom: 30px !important;
+  }
+  
+  /* Reviews section */
+  .pd-reviews {
+    margin-top: 20px !important;
+  }
+  
+  .pd-reviews h3 {
+    margin-bottom: 10px !important;
+  }
+  
+  .pd-review {
+    margin-bottom: 15px !important;
+    border-bottom: 1px solid #eee !important;
+    padding-bottom: 10px !important;
+  }
+  
+  .pd-review-header {
+    display: flex !important;
+    align-items: center !important;
+    gap: 10px !important;
+    margin-bottom: 5px !important;
+  }
+  
+  .pd-avatar {
+    width: 35px !important;
+    height: 35px !important;
+    border-radius: 50% !important;
+    background-color: #008751 !important;
+    color: #fff !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    font-weight: bold !important;
+  }
+  
+  .pd-review-user {
+    font-weight: bold !important;
+    font-size: 1rem !important;
+  }
+  
+  .pd-review-comment {
+    font-size: 0.9rem !important;
+    color: #555 !important;
+  }
+  
+  /* Responsive adjustments */
+  @media (max-width: 768px) {
+    .pd-grid {
+      flex-direction: column !important;
+    }
+    .pd-image {
+      max-width: 100% !important;
+    }
+  }
+  
