@@ -5,7 +5,7 @@ import { Box, Typography, TextField, Button, Link, Container, CssBaseline, Grid,
 import { createTheme, ThemeProvider } from '@mui/material/styles';
 import { useNavigate } from 'react-router-dom';
 import bgTest from '../assets/bgTest.gif'
-import config from '../constant/index';
+import { config } from '../constant/index';
 import { showToast } from '../utils/toast'
 
 
@@ -210,13 +210,25 @@ const Login = ({ onSwitchToSignup, onSwitchToForgotPassword, setUser }) => {
         throw new Error('Login failed');
       }
 
+      // Store user data and token
+      localStorage.setItem('token', userData.access_token);
+      localStorage.setItem('user', JSON.stringify(userData.user));
       
-      // Assume the API returns an object with user details.
       setUser({
+        ...userData.user,
         accessToken: userData.access_token,
       });
+      
       showToast("Login Successful", "success");
-      navigate('/');
+      
+      // Redirect based on user role
+      if (userData.user.role === 'admin') {
+        navigate('/admin');
+      } else if (userData.user.role === 'vendor') {
+        navigate('/vendor');
+      } else {
+        navigate('/');
+      }
     } catch (error) {
       console.error(error);
       // Optionally show an error message to the user.
@@ -321,6 +333,7 @@ const ForgotPassword = ({ onSwitchToLogin }) => {
 // Main Auth Component
 const Auth = ({ setUser }) => {
   const [activePage, setActivePage] = useState('login');
+  const navigate = useNavigate();
 
   return (
     <ThemeProvider theme={theme} >
@@ -336,6 +349,7 @@ const Auth = ({ setUser }) => {
           {activePage === 'login' && (
             <Login
               setUser={setUser}
+              onSwitchToLogin={() => setActivePage('login')}
               onSwitchToSignup={() => setActivePage('signup')}
               onSwitchToForgotPassword={() => setActivePage('forgotPassword')}
             />
@@ -343,6 +357,36 @@ const Auth = ({ setUser }) => {
           {activePage === 'forgotPassword' && (
             <ForgotPassword onSwitchToLogin={() => setActivePage('login')} />
           )}
+          
+          {/* Vendor Registration CTA */}
+          <Box sx={{ textAlign: 'center', mt: 4 }}>
+            <Typography variant="h6" sx={{ color: 'white', mb: 2 }}>
+              🏪 Want to sell on ShopNaija?
+            </Typography>
+            <Button
+              variant="contained"
+              onClick={() => navigate('/vendor-registration')}
+              sx={{
+                backgroundColor: '#ff6b35',
+                color: 'white',
+                fontWeight: 600,
+                px: 4,
+                py: 1.5,
+                borderRadius: 3,
+                '&:hover': {
+                  backgroundColor: '#e85a2b',
+                  transform: 'translateY(-2px)',
+                  boxShadow: '0 8px 25px rgba(255, 107, 53, 0.3)'
+                },
+                transition: 'all 0.3s ease'
+              }}
+            >
+              Become a Vendor Today!
+            </Button>
+            <Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.8)', mt: 1 }}>
+              Join thousands of Nigerian entrepreneurs
+            </Typography>
+          </Box>
         </Container>
       </GradientBox>
     </ThemeProvider>

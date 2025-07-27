@@ -1,265 +1,210 @@
-// import React, { useState } from 'react';
-// import Navbar from '../components/Navbar';
-// import '../App.css'
-// export default function Home() {
-
-
-//   return (
-//     <div style={{backgroundColor:'red'}}>
-//         {/* <Navbar/> */}
-//         <h1>Hi</h1>
-//     </div>
-    
-//   );
-// }
-
-// pages/Home.jsx
 import React, { useState, useEffect } from 'react';
 import { 
-  Grid, 
+  Box,
   Typography, 
-  Chip, 
-  useMediaQuery, 
+  Container,
+  useMediaQuery,
   CircularProgress,
-  IconButton
+  Button
 } from '@mui/material';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import ProductCard from '../components/ProductCard';
-import { dummyProducts, categories } from '../data/dummyData';
-import FilterListIcon from '@mui/icons-material/FilterList';
-import CloseIcon from '@mui/icons-material/Close';
+import CategorySection from '../components/CategorySection';
+import HeroSection from '../components/HeroSection';
+import FeaturedProducts from '../components/FeaturedProducts';
+import { categories } from '../data/dummyData';
+import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
 
 const Home = ({ searchQuery }) => {
   const isMobile = useMediaQuery('(max-width:600px)');
+  const isTablet = useMediaQuery('(max-width:960px)');
   const [allProducts, setAllProducts] = useState([]);
-  const [visibleProducts, setVisibleProducts] = useState([]);
-  const [selectedCategory, setSelectedCategory] = useState('all');
-  const [page, setPage] = useState(1);
-  const [loading, setLoading] = useState(false);
-  const [showFilters, setShowFilters] = useState(false);
+  const [featuredProducts, setFeaturedProducts] = useState([]);
+  const [categoryProducts, setCategoryProducts] = useState({});
+  const [loading, setLoading] = useState(true);
 
-  // Animation variants
-  const containerVariants = {
-    hidden: { opacity: 0 },
-    visible: { 
-      opacity: 1,
-      transition: { staggerChildren: 0.1 }
-    }
-  };
-
-  const itemVariants = {
-    hidden: { y: 20, opacity: 0 },
-    visible: { y: 0, opacity: 1 }
-  };
-
-  // Filter products
-//   useEffect(() => {
-//     const filtered = dummyProducts.filter(product => {
-//       const matchesSearch = product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-//                             product.description.toLowerCase().includes(searchQuery.toLowerCase());
-//       const matchesCategory = selectedCategory === 'all' || product.category === selectedCategory;
-//       return matchesSearch && matchesCategory;
-//     });
-
-//     setVisibleProducts(filtered.slice(0, page * 6));
-//   }, [searchQuery, selectedCategory, page]);
-useEffect(() => {
-  const fetchProducts = async () => {
-    try {
-      const response = await fetch('http://127.0.0.1:5000/api/products');
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+  // Fetch products from API
+  useEffect(() => {
+    const fetchProducts = async () => {
+      try {
+        setLoading(true);
+        const response = await fetch('http://127.0.0.1:5000/api/products');
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        const data = await response.json();
+        
+        // Extract products from paginated response
+        const productsData = data.products || data;
+        
+        const transformedProducts = productsData.map(item => ({
+          id: item.id,
+          name: item.name,
+          price: item.price,
+          originalPrice: item.price * 1.2, // Add original price for discount display
+          description: item.description || `Premium quality ${item.name}`,
+          image: item.image_url || `https://picsum.photos/400/300?random=${item.id}`,
+          category: item.category ? item.category.toLowerCase() : 'general',
+          rating: item.rating || (Math.random() * 2 + 3).toFixed(1), // 3-5 star rating
+          reviews: item.review_count || Math.floor(Math.random() * 100) + 10,
+          stock: item.stock || Math.floor(Math.random() * 50) + 5,
+          badge: Math.random() > 0.7 ? 'New' : Math.random() > 0.5 ? 'Sale' : null,
+          discount: Math.random() > 0.6 ? Math.floor(Math.random() * 30) + 10 : null
+        }));
+        
+        setAllProducts(transformedProducts);
+        
+        // Set featured products (first 8 products)
+        setFeaturedProducts(transformedProducts.slice(0, 8));
+        
+        // Group products by category
+        const grouped = {};
+        categories.forEach(category => {
+          grouped[category] = transformedProducts
+            .filter(product => product.category === category)
+            .slice(0, 8); // Limit to 8 products per category
+        });
+        setCategoryProducts(grouped);
+        
+      } catch (error) {
+        console.error("Error fetching products:", error);
+        // Fallback to dummy data if API fails
+        setAllProducts([]);
+        setFeaturedProducts([]);
+      } finally {
+        setLoading(false);
       }
-      const data = await response.json();
-      // Optionally, add default values for any missing fields here
-      const transformedProducts = data.map(item => ({
-        id: item.id,
-        name: item.name,
-        price: item.price,
-        description: item.description || `Premium quality product ${item.id} description`,
-        image: item.image_url || `https://source.unsplash.com/random/800x600?product,${item.id}`,
-        category: item.category ? item.category.toLowerCase() : 'all',
-        rating: item.rating || Math.floor(Math.random() * 5) + 1,
-        reviews: item.reviews || []
-      }));
-      setAllProducts(transformedProducts);
-    } catch (error) {
-      console.error("Error fetching products:", error);
-    }
-  };
-  fetchProducts();
-}, []);
+    };
+    
+    fetchProducts();
+  }, []);
 
-// Filter products based on search query and selected category
-useEffect(() => {
-  const filtered = allProducts.filter(product => {
-    const searchLower = searchQuery?.toLowerCase() || '';
-    const productName = product.name?.toLowerCase() || '';
-    const productDesc = product.description?.toLowerCase() || '';
-    
-    const matchesSearch = productName.includes(searchLower) || 
-                          productDesc.includes(searchLower);
-    
-    const matchesCategory = selectedCategory === 'all' || 
-                            product.category === selectedCategory;
-    
-    return matchesSearch && matchesCategory;
+  // Filter products based on search
+  const filteredProducts = allProducts.filter(product => {
+    if (!searchQuery) return true;
+    const searchLower = searchQuery.toLowerCase();
+    return (
+      product.name.toLowerCase().includes(searchLower) ||
+      product.description.toLowerCase().includes(searchLower) ||
+      product.category.toLowerCase().includes(searchLower)
+    );
   });
 
-  setVisibleProducts(filtered.slice(0, page * 6));
-}, [searchQuery, selectedCategory, page, allProducts]);
-  // Infinite scroll
-  const handleScroll = () => {
-    if (window.innerHeight + document.documentElement.scrollTop >= 
-      document.documentElement.offsetHeight - 100 && !loading) {
-      setLoading(true);
-      setTimeout(() => {
-        setPage(prev => prev + 1);
-        setLoading(false);
-      }, 1000);
-    }
-  };
-
-  useEffect(() => {
-    window.addEventListener('scroll', handleScroll);
-    return () => window.removeEventListener('scroll', handleScroll);
-  }, [loading]);
+  if (loading) {
+    return (
+      <Box 
+        display="flex" 
+        justifyContent="center" 
+        alignItems="center" 
+        minHeight="60vh"
+      >
+        <CircularProgress size={60} sx={{ color: '#008751' }} />
+      </Box>
+    );
+  }
 
   return (
-    <div style={{ padding: isMobile ? '1rem' : '2rem', position: 'relative',marginTop:'40px' }}>
-      {/* Category Filter Chips */}
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        style={{
-          position: isMobile ? 'fixed' : 'static',
-          top: isMobile ? 0 : 'auto',
-          left: isMobile ? 0 : 'auto',
-          right: isMobile ? 0 : 'auto',
-          zIndex: 1000,
-          background: isMobile ? 'white' : 'transparent',
-          padding: isMobile ? '1rem' : 0,
-          boxShadow: isMobile ? '0 2px 5px rgba(0,0,0,0.1)' : 'none',
-          display: showFilters || !isMobile ? 'block' : 'none'
+    <Box sx={{ 
+      minHeight: '100vh',
+      backgroundColor: '#f8f9fa',
+      paddingTop: { xs: '60px', sm: '70px', md: '80px' },
+      paddingBottom: '2rem'
+    }}>
+      {/* Hero Section */}
+      {!searchQuery && <HeroSection />}
+      
+      <Container 
+        maxWidth="xl" 
+        sx={{ 
+          px: { xs: 1, sm: 2, md: 3, lg: 4 },
+          mt: searchQuery ? 2 : 0
         }}
       >
-        <div style={{ 
-          display: 'flex', 
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          marginBottom: '1rem'
-        }}>
-          {isMobile && (
-            <Typography variant="h6" sx={{ color: '#008751' }}>
-              Filter by:
-            </Typography>
-          )}
-          {isMobile && (
-            <IconButton onClick={() => setShowFilters(false)}>
-              <CloseIcon />
-            </IconButton>
-          )}
-        </div>
         
-        <motion.div
-          variants={containerVariants}
-          initial="hidden"
-          animate="visible"
-          style={{
-            display: 'flex',
-            flexWrap: 'wrap',
-            gap: '0.5rem',
-            justifyContent: isMobile ? 'center' : 'flex-start'
-          }}
-        >
-          {['all', ...categories].map(category => (
-            <motion.div key={category} variants={itemVariants}>
-              <Chip
-                label={category}
-                clickable
-                variant={selectedCategory === category ? 'filled' : 'outlined'}
-                color="primary"
-                onClick={() => setSelectedCategory(category)}
-                sx={{
-                  textTransform: 'capitalize',
-                  border: selectedCategory === category ? 'none' : '1px solid #008751',
-                  background: selectedCategory === category ? '#008751' : 'transparent',
-                  color: selectedCategory === category ? 'white' : '#008751'
-                }}
-              />
-            </motion.div>
-          ))}
-        </motion.div>
-      </motion.div>
-
-      {/* Mobile Filter Toggle */}
-      {isMobile && (
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          style={{
-            position: 'fixed',
-            bottom: '2rem',
-            right: '1rem',
-            zIndex: 1000
-          }}
-        >
-          <IconButton
-            onClick={() => setShowFilters(!showFilters)}
-            sx={{
-              background: '#008751',
-              color: 'white',
-              '&:hover': { background: '#006442' }
-            }}
-          >
-            <FilterListIcon />
-          </IconButton>
-        </motion.div>
-      )}
-
-      {/* Product Grid */}
-      <Grid container spacing={3} sx={{ marginTop: isMobile ? '70px' : 0 }}>
-        <AnimatePresence>
-          {visibleProducts.map((product) => (
-            <Grid item xs={12} sm={6} md={4} key={product.id}>
-              <motion.div
-                variants={itemVariants}
-                initial="hidden"
-                animate="visible"
-                exit={{ opacity: 0 }}
-                transition={{ duration: 0.3 }}
-              >
-                <ProductCard product={product} />
-              </motion.div>
-            </Grid>
-          ))}
-        </AnimatePresence>
-      </Grid>
-
-      {/* Loading Spinner */}
-      {loading && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          style={{ display: 'flex', justifyContent: 'center', margin: '2rem' }}
-        >
-          <CircularProgress sx={{ color: '#008751' }} />
-        </motion.div>
-      )}
-
-      {/* Empty State */}
-      {!visibleProducts.length && !loading && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          style={{ textAlign: 'center', marginTop: '4rem' }}
-        >
-          <Typography variant="h5" sx={{ color: '#008751' }}>
-            No products found matching your criteria
-          </Typography>
-        </motion.div>
-      )}
-    </div>
+        {/* Search Results */}
+        {searchQuery && (
+          <Box sx={{ mb: 4 }}>
+            <Typography 
+              variant="h4" 
+              sx={{ 
+                mb: 3,
+                fontWeight: 700,
+                color: '#2c3e50',
+                fontSize: { xs: '1.25rem', sm: '1.5rem', md: '2rem' },
+                textAlign: { xs: 'center', sm: 'left' },
+                px: { xs: 1, sm: 0 }
+              }}
+            >
+              Search Results for "{searchQuery}"
+            </Typography>
+            <Box
+              sx={{
+                display: 'grid',
+                gridTemplateColumns: {
+                  xs: 'repeat(auto-fill, minmax(150px, 1fr))',
+                  sm: 'repeat(auto-fill, minmax(200px, 1fr))',
+                  md: 'repeat(auto-fill, minmax(280px, 1fr))',
+                  lg: 'repeat(auto-fill, minmax(320px, 1fr))'
+                },
+                gap: { xs: 1, sm: 2, md: 3 },
+                mb: 4,
+                px: { xs: 0.5, sm: 0 }
+              }}
+            >
+              {filteredProducts.map((product) => (
+                <motion.div
+                  key={product.id}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.3 }}
+                >
+                  <ProductCard product={product} />
+                </motion.div>
+              ))}
+            </Box>
+            
+            {filteredProducts.length === 0 && (
+              <Box textAlign="center" py={4}>
+                <Typography 
+                  variant="h6" 
+                  color="text.secondary"
+                  sx={{ fontSize: { xs: '1rem', sm: '1.25rem' } }}
+                >
+                  No products found matching your search.
+                </Typography>
+                <Typography 
+                  variant="body2" 
+                  color="text.secondary"
+                  sx={{ mt: 1, fontSize: { xs: '0.875rem', sm: '1rem' } }}
+                >
+                  Try adjusting your search terms or browse our categories
+                </Typography>
+              </Box>
+            )}
+          </Box>
+        )}
+        
+        {/* Featured Products Section */}
+        {!searchQuery && featuredProducts.length > 0 && (
+          <FeaturedProducts products={featuredProducts} />
+        )}
+        
+        {/* Category Sections */}
+        {!searchQuery && categories.map((category) => {
+          const products = categoryProducts[category] || [];
+          if (products.length === 0) return null;
+          
+          return (
+            <CategorySection
+              key={category}
+              category={category}
+              products={products}
+            />
+          );
+        })}
+        
+      </Container>
+    </Box>
   );
 };
 
