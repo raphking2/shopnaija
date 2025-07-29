@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { CssBaseline, Box } from '@mui/material';
 import Home from './pages/Home';
 import Auth from './pages/Auth';
@@ -30,6 +30,91 @@ const ProtectedRoute = ({ children, allowedRoles = [], user }) => {
   }
   
   return children;
+};
+
+// Layout wrapper component
+const AppLayout = ({ user, setUser, searchQuery, setSearchQuery }) => {
+  const location = useLocation();
+  
+  // Check if current route is a dashboard route
+  const isDashboardRoute = location.pathname.startsWith('/admin') || location.pathname.startsWith('/vendor');
+  
+  return (
+    <Box sx={{ 
+      display: 'flex', 
+      flexDirection: 'column', 
+      minHeight: '100vh' 
+    }}>
+      {/* Only show Navbar for non-dashboard routes */}
+      {!isDashboardRoute && (
+        <Navbar 
+          user={user} 
+          setUser={setUser} 
+          searchQuery={searchQuery}
+          setSearchQuery={setSearchQuery}
+        />
+      )}
+      
+      <Box component="main" sx={{ flexGrow: 1 }}>
+        <Routes>
+          <Route 
+            path="/" 
+            element={<Home searchQuery={searchQuery} />} 
+          />
+          <Route 
+            path="/admin-setup" 
+            element={<AdminSetup />} 
+          />
+          <Route 
+            path="/auth" 
+            element={user ? <Navigate to="/" /> : <Auth setUser={setUser} />} 
+          />
+          <Route 
+            path="/vendor-registration" 
+            element={user ? <Navigate to="/" /> : <VendorRegistration />} 
+          />
+          <Route 
+            path="/forgot-password" 
+            element={<ForgotPassword />} 
+          />
+          <Route 
+            path="/product/:id" 
+            element={<ProductDetail />} 
+          />
+          <Route 
+            path="/cart" 
+            element={<Cart />} 
+          />
+          
+          {/* Admin Routes */}
+          <Route 
+            path="/admin/*" 
+            element={
+              <ProtectedRoute allowedRoles={['admin']} user={user}>
+                <AdminDashboard />
+              </ProtectedRoute>
+            } 
+          />
+          
+          {/* Vendor Routes */}
+          <Route 
+            path="/vendor/*" 
+            element={
+              <ProtectedRoute allowedRoles={['vendor']} user={user}>
+                <VendorDashboard />
+              </ProtectedRoute>
+            } 
+          />
+          
+          {/* Fallback Route */}
+          <Route path="*" element={<Navigate to="/" />} />
+        </Routes>
+      </Box>
+      
+      {/* Only show Footer for non-dashboard routes */}
+      {!isDashboardRoute && <Footer />}
+    </Box>
+  );
 };
 
 function App() {
@@ -71,76 +156,12 @@ function App() {
         />
         <CopilotWidget />
         
-        <Box sx={{ 
-          display: 'flex', 
-          flexDirection: 'column', 
-          minHeight: '100vh' 
-        }}>
-          <Navbar 
-            user={user} 
-            setUser={setUser} 
-            searchQuery={searchQuery}
-            setSearchQuery={setSearchQuery}
-          />
-          
-          <Box component="main" sx={{ flexGrow: 1 }}>
-            <Routes>
-              <Route 
-                path="/" 
-                element={<Home searchQuery={searchQuery} />} 
-              />
-              <Route 
-                path="/admin-setup" 
-                element={<AdminSetup />} 
-              />
-              <Route 
-                path="/auth" 
-                element={user ? <Navigate to="/" /> : <Auth setUser={setUser} />} 
-              />
-              <Route 
-                path="/vendor-registration" 
-                element={user ? <Navigate to="/" /> : <VendorRegistration />} 
-              />
-              <Route 
-                path="/forgot-password" 
-                element={<ForgotPassword />} 
-              />
-              <Route 
-                path="/product/:id" 
-                element={<ProductDetail />} 
-              />
-              <Route 
-                path="/cart" 
-                element={<Cart />} 
-              />
-              
-              {/* Admin Routes */}
-              <Route 
-                path="/admin/*" 
-                element={
-                  <ProtectedRoute allowedRoles={['admin']} user={user}>
-                    <AdminDashboard />
-                  </ProtectedRoute>
-                } 
-              />
-              
-              {/* Vendor Routes */}
-              <Route 
-                path="/vendor/*" 
-                element={
-                  <ProtectedRoute allowedRoles={['vendor']} user={user}>
-                    <VendorDashboard />
-                  </ProtectedRoute>
-                } 
-              />
-              
-              {/* Fallback Route */}
-              <Route path="*" element={<Navigate to="/" />} />
-            </Routes>
-          </Box>
-          
-          <Footer />
-        </Box>
+        <AppLayout 
+          user={user} 
+          setUser={setUser} 
+          searchQuery={searchQuery} 
+          setSearchQuery={setSearchQuery} 
+        />
       </Router>
     </CartProvider>
   );

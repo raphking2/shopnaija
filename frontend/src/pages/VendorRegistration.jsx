@@ -18,11 +18,23 @@ import {
   InputLabel,
   Select,
   MenuItem,
-  Chip
+  Chip,
+  IconButton,
+  List,
+  ListItem,
+  ListItemIcon,
+  ListItemText,
+  ListItemSecondaryAction
 } from '@mui/material';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { showToast } from '../utils/toast';
+import { 
+  CloudUpload as UploadIcon, 
+  Description as DocumentIcon,
+  CheckCircle as CheckIcon,
+  Delete as DeleteIcon 
+} from '@mui/icons-material';
 
 const VendorRegistration = () => {
   const navigate = useNavigate();
@@ -48,12 +60,20 @@ const VendorRegistration = () => {
     // Bank Info
     bank_name: '',
     account_number: '',
-    account_name: ''
+    account_name: '',
+    
+    // Documents
+    documents: {
+      id_card: null,
+      business_permit: null,
+      tax_certificate: null,
+      bank_statement: null
+    }
   });
   
   const [loading, setLoading] = useState(false);
   
-  const steps = ['Personal Information', 'Business Details', 'Banking Information'];
+  const steps = ['Personal Information', 'Business Details', 'Banking Information', 'Document Upload'];
   
   const nigerianStates = [
     'Abia', 'Adamawa', 'Akwa Ibom', 'Anambra', 'Bauchi', 'Bayelsa', 'Benue',
@@ -71,11 +91,75 @@ const VendorRegistration = () => {
     'Office Supplies', 'Pet Supplies', 'Travel & Luggage', 'Musical Instruments'
   ];
 
+  const DocumentUpload = ({ title, documentType, required = false }) => (
+    <Card sx={{ mb: 2, border: '2px dashed #e0e0e0' }}>
+      <CardContent>
+        <Box sx={{ textAlign: 'center', py: 2 }}>
+          <UploadIcon sx={{ fontSize: 48, color: '#008751', mb: 2 }} />
+          <Typography variant="h6" sx={{ mb: 1 }}>
+            {title} {required && <span style={{ color: 'red' }}>*</span>}
+          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            Upload PDF, JPG, or PNG (Max 5MB)
+          </Typography>
+          
+          {formData.documents[documentType] ? (
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1 }}>
+              <CheckIcon sx={{ color: 'success.main' }} />
+              <Typography variant="body2">
+                {formData.documents[documentType].name}
+              </Typography>
+              <IconButton 
+                size="small" 
+                onClick={() => handleFileUpload(documentType, null)}
+                sx={{ color: 'error.main' }}
+              >
+                <DeleteIcon />
+              </IconButton>
+            </Box>
+          ) : (
+            <Button
+              variant="outlined"
+              component="label"
+              startIcon={<UploadIcon />}
+              sx={{ borderColor: '#008751', color: '#008751' }}
+            >
+              Choose File
+              <input
+                type="file"
+                hidden
+                accept=".pdf,.jpg,.jpeg,.png"
+                onChange={(e) => {
+                  const file = e.target.files[0];
+                  if (file && file.size <= 5 * 1024 * 1024) {
+                    handleFileUpload(documentType, file);
+                  } else {
+                    showToast('File size should not exceed 5MB', 'error');
+                  }
+                }}
+              />
+            </Button>
+          )}
+        </Box>
+      </CardContent>
+    </Card>
+  );
+
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData(prev => ({
       ...prev,
       [name]: value
+    }));
+  };
+
+  const handleFileUpload = (documentType, file) => {
+    setFormData(prev => ({
+      ...prev,
+      documents: {
+        ...prev.documents,
+        [documentType]: file
+      }
     }));
   };
 
@@ -116,6 +200,12 @@ const VendorRegistration = () => {
       case 2:
         if (!formData.bank_name || !formData.account_number || !formData.account_name) {
           showToast('Please fill all required banking fields', 'error');
+          return false;
+        }
+        return true;
+      case 3:
+        if (!formData.documents.id_card || !formData.documents.business_permit) {
+          showToast('Please upload required documents (ID Card and Business Permit)', 'error');
           return false;
         }
         return true;
@@ -418,6 +508,86 @@ const VendorRegistration = () => {
                     <Chip label="Background Check" color="primary" variant="outlined" />
                     <Chip label="Approval Notification" color="success" variant="outlined" />
                   </Box>
+                </CardContent>
+              </Card>
+            </Grid>
+          </Grid>
+        );
+      
+      case 3:
+        return (
+          <Grid container spacing={3}>
+            <Grid item xs={12}>
+              <Typography variant="h6" sx={{ mb: 2, color: '#008751' }}>
+                📄 Document Upload
+              </Typography>
+              <Alert severity="info" sx={{ mb: 3 }}>
+                Please upload the required documents for verification. All documents should be clear and readable.
+              </Alert>
+            </Grid>
+            
+            <Grid item xs={12} md={6}>
+              <DocumentUpload 
+                title="Government ID Card" 
+                documentType="id_card" 
+                required 
+              />
+            </Grid>
+            
+            <Grid item xs={12} md={6}>
+              <DocumentUpload 
+                title="Business Permit/License" 
+                documentType="business_permit" 
+                required 
+              />
+            </Grid>
+            
+            <Grid item xs={12} md={6}>
+              <DocumentUpload 
+                title="Tax Certificate" 
+                documentType="tax_certificate" 
+              />
+            </Grid>
+            
+            <Grid item xs={12} md={6}>
+              <DocumentUpload 
+                title="Bank Statement" 
+                documentType="bank_statement" 
+              />
+            </Grid>
+            
+            <Grid item xs={12}>
+              <Card sx={{ backgroundColor: '#f8f9fa', border: '1px solid #e9ecef' }}>
+                <CardContent>
+                  <Typography variant="h6" sx={{ color: '#008751', mb: 2 }}>
+                    📋 Document Guidelines
+                  </Typography>
+                  <List dense>
+                    <ListItem>
+                      <ListItemIcon>
+                        <DocumentIcon sx={{ color: '#008751' }} />
+                      </ListItemIcon>
+                      <ListItemText primary="Government ID: National ID, Driver's License, or International Passport" />
+                    </ListItem>
+                    <ListItem>
+                      <ListItemIcon>
+                        <DocumentIcon sx={{ color: '#008751' }} />
+                      </ListItemIcon>
+                      <ListItemText primary="Business Permit: CAC Certificate, Trade License, or Business Registration" />
+                    </ListItem>
+                    <ListItem>
+                      <ListItemIcon>
+                        <DocumentIcon sx={{ color: '#008751' }} />
+                      </ListItemIcon>
+                      <ListItemText primary="Tax Certificate: FIRS Tax Identification Number (TIN) Certificate" />
+                    </ListItem>
+                    <ListItem>
+                      <ListItemIcon>
+                        <DocumentIcon sx={{ color: '#008751' }} />
+                      </ListItemIcon>
+                      <ListItemText primary="Bank Statement: Recent 3-month bank statement" />
+                    </ListItem>
+                  </List>
                 </CardContent>
               </Card>
             </Grid>

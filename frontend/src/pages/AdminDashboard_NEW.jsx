@@ -35,7 +35,15 @@ import {
   Divider,
   Alert,
   CircularProgress,
-  Fade
+  Fade,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
+  Snackbar,
+  Pagination,
+  Stack,
+  InputAdornment
 } from '@mui/material';
 
 import {
@@ -50,7 +58,12 @@ import {
   Delete as DeleteIcon,
   CheckCircle as ApproveIcon,
   Cancel as RejectIcon,
-  Close as CloseIcon
+  Close as CloseIcon,
+  Visibility as VisibilityIcon,
+  Check as CheckIcon,
+  Block as BlockIcon,
+  Search as SearchIcon,
+  FileDownload as DownloadIcon
 } from '@mui/icons-material';
 
 import { config } from '../constant';
@@ -59,6 +72,9 @@ import { showToast } from '../utils/toast';
 const AdminDashboard = () => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+  
+  // Get current user data
+  const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
   
   // State management
   const [currentTab, setCurrentTab] = useState(0);
@@ -72,9 +88,20 @@ const AdminDashboard = () => {
   const [orders, setOrders] = useState([]);
   const [admins, setAdmins] = useState([]);
   
+  // Pagination and filtering states
+  const [vendorPage, setVendorPage] = useState(1);
+  const [vendorTotalPages, setVendorTotalPages] = useState(1);
+  const [vendorSearch, setVendorSearch] = useState('');
+  const [vendorStatusFilter, setVendorStatusFilter] = useState('');
+  const [adminPage, setAdminPage] = useState(1);
+  const [adminTotalPages, setAdminTotalPages] = useState(1);
+  const [adminSearch, setAdminSearch] = useState('');
+  
   // Dialog states
   const [rejectDialogOpen, setRejectDialogOpen] = useState(false);
   const [newAdminDialogOpen, setNewAdminDialogOpen] = useState(false);
+  const [newVendorDialogOpen, setNewVendorDialogOpen] = useState(false);
+  const [vendorDetailsOpen, setVendorDetailsOpen] = useState(false);
   const [selectedVendor, setSelectedVendor] = useState(null);
   const [rejectReason, setRejectReason] = useState('');
   const [newAdminData, setNewAdminData] = useState({
@@ -82,6 +109,16 @@ const AdminDashboard = () => {
     email: '',
     password: '',
     confirmPassword: ''
+  });
+  const [newVendorData, setNewVendorData] = useState({
+    username: '',
+    email: '',
+    password: '',
+    confirmPassword: '',
+    business_name: '',
+    business_email: '',
+    business_phone: '',
+    category: ''
   });
 
   const menuItems = [
@@ -109,15 +146,26 @@ const AdminDashboard = () => {
     }
   };
 
-  const fetchVendors = async () => {
+  const fetchVendors = async (page = 1, search = '', status = '') => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`${config.BASE_URL}/admin/vendors`, {
+      const params = new URLSearchParams({
+        page: page.toString(),
+        per_page: '10'
+      });
+      
+      if (search) params.append('search', search);
+      if (status) params.append('status', status);
+      
+      const response = await fetch(`${config.BASE_URL}/admin/vendors?${params}`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
+      
       if (response.ok) {
         const data = await response.json();
         setVendors(data.vendors || []);
+        setVendorTotalPages(data.pagination?.pages || 1);
+        setVendorPage(data.pagination?.page || 1);
       }
     } catch (error) {
       console.error('Error fetching vendors:', error);
@@ -125,15 +173,25 @@ const AdminDashboard = () => {
     }
   };
 
-  const fetchAdmins = async () => {
+  const fetchAdmins = async (page = 1, search = '') => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`${config.BASE_URL}/admin/admins`, {
+      const params = new URLSearchParams({
+        page: page.toString(),
+        per_page: '10'
+      });
+      
+      if (search) params.append('search', search);
+      
+      const response = await fetch(`${config.BASE_URL}/admin/admins?${params}`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
+      
       if (response.ok) {
         const data = await response.json();
         setAdmins(data.admins || []);
+        setAdminTotalPages(data.pagination?.pages || 1);
+        setAdminPage(data.pagination?.page || 1);
       }
     } catch (error) {
       console.error('Error fetching admins:', error);
@@ -151,7 +209,7 @@ const AdminDashboard = () => {
       });
       if (response.ok) {
         showToast('Vendor approved successfully', 'success');
-        fetchVendors();
+        fetchVendors(vendorPage, vendorSearch, vendorStatusFilter);
       }
     } catch (error) {
       console.error('Error approving vendor:', error);
@@ -178,7 +236,7 @@ const AdminDashboard = () => {
         setRejectDialogOpen(false);
         setRejectReason('');
         setSelectedVendor(null);
-        fetchVendors();
+        fetchVendors(vendorPage, vendorSearch, vendorStatusFilter);
       }
     } catch (error) {
       console.error('Error rejecting vendor:', error);
@@ -212,7 +270,7 @@ const AdminDashboard = () => {
         showToast('Admin created successfully', 'success');
         setNewAdminDialogOpen(false);
         setNewAdminData({ username: '', email: '', password: '', confirmPassword: '' });
-        fetchAdmins();
+        fetchAdmins(adminPage, adminSearch);
       } else {
         const errorData = await response.json();
         showToast(errorData.error || 'Failed to create admin', 'error');
@@ -223,6 +281,197 @@ const AdminDashboard = () => {
     }
   };
 
+  // Handle admin deletion
+  const handleDeleteAdmin = async (adminId) => {
+    if (!window.confirm('Are you sure you want to delete this admin?')) return;
+    
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${config.BASE_URL}/admin/admins/${adminId}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      
+      if (response.ok) {
+        showToast('Admin deleted successfully', 'success');
+        fetchAdmins(adminPage, adminSearch);
+      } else {
+        const errorData = await response.json();
+        showToast(errorData.error || 'Failed to delete admin', 'error');
+      }
+    } catch (error) {
+      console.error('Error deleting admin:', error);
+      showToast('Failed to delete admin', 'error');
+    }
+  };
+
+  // Handle vendor actions (approve/reject)
+  const handleVendorAction = async (vendorId, action) => {
+    try {
+      const token = localStorage.getItem('token');
+      const endpoint = action === 'approve' ? 'approve' : 'reject';
+      
+      const response = await fetch(`${config.BASE_URL}/admin/vendors/${vendorId}/${endpoint}`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      
+      if (response.ok) {
+        showToast(`Vendor ${action}d successfully`, 'success');
+        fetchVendors(vendorPage, vendorSearch, vendorStatusFilter);
+        setVendorDetailsOpen(false);
+      } else {
+        const errorData = await response.json();
+        showToast(errorData.error || `Failed to ${action} vendor`, 'error');
+      }
+    } catch (error) {
+      console.error(`Error ${action}ing vendor:`, error);
+      showToast(`Failed to ${action} vendor`, 'error');
+    }
+  };
+
+  // Handle vendor details view
+  const handleViewVendorDetails = (vendor) => {
+    setSelectedVendor(vendor);
+    setVendorDetailsOpen(true);
+  };
+
+  // Handle add admin
+  const handleAddAdmin = async () => {
+    if (newAdminData.password !== newAdminData.confirmPassword) {
+      showToast('Passwords do not match', 'error');
+      return;
+    }
+    
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${config.BASE_URL}/admin/admins`, {
+        method: 'POST',
+        headers: { 
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          username: newAdminData.username,
+          email: newAdminData.email,
+          password: newAdminData.password
+        })
+      });
+      
+      if (response.ok) {
+        showToast('Admin added successfully', 'success');
+        setNewAdminDialogOpen(false);
+        setNewAdminData({ username: '', email: '', password: '', confirmPassword: '' });
+        fetchAdmins(adminPage, adminSearch);
+      } else {
+        const errorData = await response.json();
+        showToast(errorData.error || 'Failed to add admin', 'error');
+      }
+    } catch (error) {
+      console.error('Error adding admin:', error);
+      showToast('Failed to add admin', 'error');
+    }
+  };
+
+  // Handle add vendor
+  const handleAddVendor = async () => {
+    if (newVendorData.password !== newVendorData.confirmPassword) {
+      showToast('Passwords do not match', 'error');
+      return;
+    }
+    
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${config.BASE_URL}/admin/vendors`, {
+        method: 'POST',
+        headers: { 
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          username: newVendorData.username,
+          email: newVendorData.email,
+          password: newVendorData.password,
+          business_name: newVendorData.business_name,
+          business_email: newVendorData.business_email,
+          business_phone: newVendorData.business_phone,
+          category: newVendorData.category
+        })
+      });
+      
+      if (response.ok) {
+        showToast('Vendor added successfully', 'success');
+        setNewVendorDialogOpen(false);
+        setNewVendorData({ 
+          username: '', email: '', password: '', confirmPassword: '',
+          business_name: '', business_email: '', business_phone: '', category: ''
+        });
+        fetchVendors(vendorPage, vendorSearch, vendorStatusFilter);
+      } else {
+        const errorData = await response.json();
+        showToast(errorData.error || 'Failed to add vendor', 'error');
+      }
+    } catch (error) {
+      console.error('Error adding vendor:', error);
+      showToast('Failed to add vendor', 'error');
+    }
+  };
+
+  // Export functions
+  const exportVendorsToCSV = () => {
+    const csvContent = "data:text/csv;charset=utf-8,";
+    const headers = ["Business Name", "Email", "Phone", "Status", "Total Sales", "Created Date"];
+    const rows = [headers.join(",")];
+    
+    vendors.forEach(vendor => {
+      const row = [
+        `"${vendor.business_name}"`,
+        `"${vendor.business_email}"`,
+        `"${vendor.business_phone || 'N/A'}"`,
+        `"${vendor.status}"`,
+        `"${vendor.total_sales || 0}"`,
+        `"${new Date(vendor.created_at).toLocaleDateString()}"`
+      ];
+      rows.push(row.join(","));
+    });
+    
+    const csv = csvContent + rows.join("\n");
+    const encodedUri = encodeURI(csv);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `vendors_export_${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    showToast('Vendors exported successfully', 'success');
+  };
+
+  const exportAdminsToCSV = () => {
+    const csvContent = "data:text/csv;charset=utf-8,";
+    const headers = ["Username", "Email", "Created Date", "Last Login"];
+    const rows = [headers.join(",")];
+    
+    admins.forEach(admin => {
+      const row = [
+        `"${admin.username}"`,
+        `"${admin.email}"`,
+        `"${admin.created_at ? new Date(admin.created_at).toLocaleDateString() : 'N/A'}"`,
+        `"${admin.last_login ? new Date(admin.last_login).toLocaleDateString() : 'Never'}"`
+      ];
+      rows.push(row.join(","));
+    });
+    
+    const csv = csvContent + rows.join("\n");
+    const encodedUri = encodeURI(csv);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `admins_export_${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    showToast('Admins exported successfully', 'success');
+  };
+
   // Load data on tab change
   useEffect(() => {
     switch (currentTab) {
@@ -230,15 +479,15 @@ const AdminDashboard = () => {
         fetchDashboardStats();
         break;
       case 1:
-        fetchVendors();
+        fetchVendors(vendorPage, vendorSearch, vendorStatusFilter);
         break;
       case 4:
-        fetchAdmins();
+        fetchAdmins(adminPage, adminSearch);
         break;
       default:
         break;
     }
-  }, [currentTab]);
+  }, [currentTab, vendorPage, vendorSearch, vendorStatusFilter, adminPage, adminSearch]);
 
   // Dashboard Stats Cards
   const StatsCard = ({ title, value, icon, color = 'primary' }) => (
@@ -309,9 +558,70 @@ const AdminDashboard = () => {
         return (
           <Fade in={true}>
             <Box>
-              <Typography variant="h4" sx={{ mb: 4, fontWeight: 'bold', color: theme.palette.primary.main }}>
-                🏪 Vendor Management
-              </Typography>
+              <Box display="flex" justifyContent="space-between" alignItems="center" sx={{ mb: 4 }}>
+                <Typography variant="h4" sx={{ fontWeight: 'bold', color: theme.palette.primary.main }}>
+                  🏪 Vendor Management
+                </Typography>
+                <Box display="flex" gap={2}>
+                  <Button
+                    variant="outlined"
+                    startIcon={<DownloadIcon />}
+                    onClick={exportVendorsToCSV}
+                    sx={{ borderRadius: 2 }}
+                  >
+                    Export CSV
+                  </Button>
+                  <Button
+                    variant="contained"
+                    startIcon={<AddIcon />}
+                    onClick={() => setNewVendorDialogOpen(true)}
+                    sx={{ borderRadius: 2 }}
+                  >
+                    Add Vendor
+                  </Button>
+                </Box>
+              </Box>
+
+              {/* Search and Filter Controls */}
+              <Box display="flex" gap={2} sx={{ mb: 3 }}>
+                <TextField
+                  placeholder="Search vendors..."
+                  value={vendorSearch}
+                  onChange={(e) => setVendorSearch(e.target.value)}
+                  InputProps={{
+                    startAdornment: (
+                      <InputAdornment position="start">
+                        <SearchIcon />
+                      </InputAdornment>
+                    ),
+                  }}
+                  sx={{ minWidth: 300 }}
+                />
+                <FormControl sx={{ minWidth: 150 }}>
+                  <InputLabel>Status</InputLabel>
+                  <Select
+                    value={vendorStatusFilter}
+                    label="Status"
+                    onChange={(e) => setVendorStatusFilter(e.target.value)}
+                  >
+                    <MenuItem value="">All Status</MenuItem>
+                    <MenuItem value="pending">Pending</MenuItem>
+                    <MenuItem value="approved">Approved</MenuItem>
+                    <MenuItem value="rejected">Rejected</MenuItem>
+                    <MenuItem value="suspended">Suspended</MenuItem>
+                  </Select>
+                </FormControl>
+                <Button 
+                  variant="outlined" 
+                  onClick={() => {
+                    setVendorSearch('');
+                    setVendorStatusFilter('');
+                    setVendorPage(1);
+                  }}
+                >
+                  Clear Filters
+                </Button>
+              </Box>
               
               {vendors.length === 0 ? (
                 <Alert severity="info" sx={{ mb: 3 }}>
@@ -349,6 +659,14 @@ const AdminDashboard = () => {
                               <Box sx={{ display: 'flex', gap: 1 }}>
                                 <Button
                                   size="small"
+                                  variant="outlined"
+                                  onClick={() => handleViewVendorDetails(vendor)}
+                                  sx={{ mr: 1 }}
+                                >
+                                  View Details
+                                </Button>
+                                <Button
+                                  size="small"
                                   variant="contained"
                                   color="success"
                                   startIcon={<ApproveIcon />}
@@ -370,12 +688,34 @@ const AdminDashboard = () => {
                                 </Button>
                               </Box>
                             )}
+                            {vendor.status !== 'pending' && (
+                              <Button
+                                size="small"
+                                variant="outlined"
+                                onClick={() => handleViewVendorDetails(vendor)}
+                              >
+                                View Details
+                              </Button>
+                            )}
                           </TableCell>
                         </TableRow>
                       ))}
                     </TableBody>
                   </Table>
                 </TableContainer>
+              )}
+
+              {/* Pagination */}
+              {vendorTotalPages > 1 && (
+                <Box display="flex" justifyContent="center" sx={{ mt: 3 }}>
+                  <Pagination
+                    count={vendorTotalPages}
+                    page={vendorPage}
+                    onChange={(event, value) => setVendorPage(value)}
+                    color="primary"
+                    size="large"
+                  />
+                </Box>
               )}
             </Box>
           </Fade>
@@ -389,13 +729,49 @@ const AdminDashboard = () => {
                 <Typography variant="h4" sx={{ fontWeight: 'bold', color: theme.palette.primary.main }}>
                   👨‍💼 Admin Management
                 </Typography>
-                <Button
-                  variant="contained"
-                  startIcon={<AddIcon />}
-                  onClick={() => setNewAdminDialogOpen(true)}
-                  sx={{ borderRadius: 2 }}
+                <Box display="flex" gap={2}>
+                  <Button
+                    variant="outlined"
+                    startIcon={<DownloadIcon />}
+                    onClick={exportAdminsToCSV}
+                    sx={{ borderRadius: 2 }}
+                  >
+                    Export CSV
+                  </Button>
+                  <Button
+                    variant="contained"
+                    startIcon={<AddIcon />}
+                    onClick={() => setNewAdminDialogOpen(true)}
+                    sx={{ borderRadius: 2 }}
+                  >
+                    Add New Admin
+                  </Button>
+                </Box>
+              </Box>
+
+              {/* Search Controls */}
+              <Box display="flex" gap={2} sx={{ mb: 3 }}>
+                <TextField
+                  placeholder="Search admins..."
+                  value={adminSearch}
+                  onChange={(e) => setAdminSearch(e.target.value)}
+                  InputProps={{
+                    startAdornment: (
+                      <InputAdornment position="start">
+                        <SearchIcon />
+                      </InputAdornment>
+                    ),
+                  }}
+                  sx={{ minWidth: 300 }}
+                />
+                <Button 
+                  variant="outlined" 
+                  onClick={() => {
+                    setAdminSearch('');
+                    setAdminPage(1);
+                  }}
                 >
-                  Add New Admin
+                  Clear Search
                 </Button>
               </Box>
 
@@ -430,7 +806,8 @@ const AdminDashboard = () => {
                             <IconButton
                               size="small"
                               color="error"
-                              onClick={() => console.log('Delete admin:', admin.id)}
+                              onClick={() => handleDeleteAdmin(admin.id)}
+                              disabled={admin.id === currentUser?.id} // Can't delete self
                             >
                               <DeleteIcon />
                             </IconButton>
@@ -440,6 +817,19 @@ const AdminDashboard = () => {
                     </TableBody>
                   </Table>
                 </TableContainer>
+              )}
+
+              {/* Pagination */}
+              {adminTotalPages > 1 && (
+                <Box display="flex" justifyContent="center" sx={{ mt: 3 }}>
+                  <Pagination
+                    count={adminTotalPages}
+                    page={adminPage}
+                    onChange={(event, value) => setAdminPage(value)}
+                    color="primary"
+                    size="large"
+                  />
+                </Box>
               )}
             </Box>
           </Fade>
@@ -536,12 +926,13 @@ const AdminDashboard = () => {
         flexGrow: 1, 
         p: 3, 
         mt: isMobile ? '64px' : 0,
-        ml: isMobile ? 0 : 0,  // Remove margin on mobile
-        width: isMobile ? '100%' : `calc(100% - 280px)`,  // Adjust width properly
-        maxWidth: '100%',
-        overflow: 'hidden'
+        ml: 0,
+        width: '100%',
+        minHeight: '100vh',
+        display: 'flex',
+        flexDirection: 'column'
       }}>
-        <Container maxWidth="xl" sx={{ px: { xs: 0, sm: 2 } }}>
+        <Container maxWidth="xl" sx={{ px: { xs: 0, sm: 2 }, flexGrow: 1 }}>
           {loading ? (
             <Box sx={{ display: 'flex', justifyContent: 'center', mt: 4 }}>
               <CircularProgress />
@@ -550,6 +941,8 @@ const AdminDashboard = () => {
             renderTabContent()
           )}
         </Container>
+        
+        {/* Footer will be handled by App.jsx */}
       </Box>
 
       {/* Reject Vendor Dialog */}
@@ -637,6 +1030,325 @@ const AdminDashboard = () => {
           </Button>
         </DialogActions>
       </Dialog>
+  // Add this dialog near the bottom of the component, before the closing return
+  
+  {/* Add Vendor Dialog */}
+  <Dialog
+    open={newVendorDialogOpen}
+    onClose={() => setNewVendorDialogOpen(false)}
+    maxWidth="md"
+    fullWidth
+  >
+    <DialogTitle>
+      <Box display="flex" justifyContent="space-between" alignItems="center">
+        <Typography variant="h6">Add New Vendor</Typography>
+        <IconButton onClick={() => setNewVendorDialogOpen(false)}>
+          <CloseIcon />
+        </IconButton>
+      </Box>
+    </DialogTitle>
+    <DialogContent dividers>
+      <Grid container spacing={2}>
+        <Grid item xs={12} md={6}>
+          <TextField
+            fullWidth
+            label="Username"
+            value={newVendorData.username}
+            onChange={(e) => setNewVendorData({ ...newVendorData, username: e.target.value })}
+            required
+          />
+        </Grid>
+        <Grid item xs={12} md={6}>
+          <TextField
+            fullWidth
+            label="Email"
+            type="email"
+            value={newVendorData.email}
+            onChange={(e) => setNewVendorData({ ...newVendorData, email: e.target.value })}
+            required
+          />
+        </Grid>
+        <Grid item xs={12} md={6}>
+          <TextField
+            fullWidth
+            label="Password"
+            type="password"
+            value={newVendorData.password}
+            onChange={(e) => setNewVendorData({ ...newVendorData, password: e.target.value })}
+            required
+          />
+        </Grid>
+        <Grid item xs={12} md={6}>
+          <TextField
+            fullWidth
+            label="Confirm Password"
+            type="password"
+            value={newVendorData.confirmPassword}
+            onChange={(e) => setNewVendorData({ ...newVendorData, confirmPassword: e.target.value })}
+            required
+          />
+        </Grid>
+        <Grid item xs={12} md={6}>
+          <TextField
+            fullWidth
+            label="Business Name"
+            value={newVendorData.business_name}
+            onChange={(e) => setNewVendorData({ ...newVendorData, business_name: e.target.value })}
+            required
+          />
+        </Grid>
+        <Grid item xs={12} md={6}>
+          <TextField
+            fullWidth
+            label="Business Email"
+            type="email"
+            value={newVendorData.business_email}
+            onChange={(e) => setNewVendorData({ ...newVendorData, business_email: e.target.value })}
+            required
+          />
+        </Grid>
+        <Grid item xs={12} md={6}>
+          <TextField
+            fullWidth
+            label="Business Phone"
+            value={newVendorData.business_phone}
+            onChange={(e) => setNewVendorData({ ...newVendorData, business_phone: e.target.value })}
+            required
+          />
+        </Grid>
+        <Grid item xs={12} md={6}>
+          <FormControl fullWidth required>
+            <InputLabel>Category</InputLabel>
+            <Select
+              value={newVendorData.category}
+              label="Category"
+              onChange={(e) => setNewVendorData({ ...newVendorData, category: e.target.value })}
+            >
+              <MenuItem value="Electronics">Electronics</MenuItem>
+              <MenuItem value="Fashion">Fashion</MenuItem>
+              <MenuItem value="Home & Garden">Home & Garden</MenuItem>
+              <MenuItem value="Books">Books</MenuItem>
+              <MenuItem value="Sports">Sports</MenuItem>
+              <MenuItem value="Beauty">Beauty</MenuItem>
+              <MenuItem value="Food">Food</MenuItem>
+              <MenuItem value="Other">Other</MenuItem>
+            </Select>
+          </FormControl>
+        </Grid>
+      </Grid>
+    </DialogContent>
+    <DialogActions>
+      <Button onClick={() => setNewVendorDialogOpen(false)}>
+        Cancel
+      </Button>
+      <Button 
+        onClick={handleAddVendor}
+        variant="contained"
+        disabled={!newVendorData.username || !newVendorData.email || !newVendorData.password || 
+                 !newVendorData.confirmPassword || !newVendorData.business_name}
+      >
+        Add Vendor
+      </Button>
+    </DialogActions>
+  </Dialog>
+
+  {/* Add Admin Dialog */}
+  <Dialog
+    open={newAdminDialogOpen}
+    onClose={() => setNewAdminDialogOpen(false)}
+    maxWidth="sm"
+    fullWidth
+  >
+    <DialogTitle>
+      <Box display="flex" justifyContent="space-between" alignItems="center">
+        <Typography variant="h6">Add New Admin</Typography>
+        <IconButton onClick={() => setNewAdminDialogOpen(false)}>
+          <CloseIcon />
+        </IconButton>
+      </Box>
+    </DialogTitle>
+    <DialogContent dividers>
+      <Grid container spacing={2}>
+        <Grid item xs={12}>
+          <TextField
+            fullWidth
+            label="Username"
+            value={newAdminData.username}
+            onChange={(e) => setNewAdminData({ ...newAdminData, username: e.target.value })}
+            required
+          />
+        </Grid>
+        <Grid item xs={12}>
+          <TextField
+            fullWidth
+            label="Email"
+            type="email"
+            value={newAdminData.email}
+            onChange={(e) => setNewAdminData({ ...newAdminData, email: e.target.value })}
+            required
+          />
+        </Grid>
+        <Grid item xs={12}>
+          <TextField
+            fullWidth
+            label="Password"
+            type="password"
+            value={newAdminData.password}
+            onChange={(e) => setNewAdminData({ ...newAdminData, password: e.target.value })}
+            required
+          />
+        </Grid>
+        <Grid item xs={12}>
+          <TextField
+            fullWidth
+            label="Confirm Password"
+            type="password"
+            value={newAdminData.confirmPassword}
+            onChange={(e) => setNewAdminData({ ...newAdminData, confirmPassword: e.target.value })}
+            required
+          />
+        </Grid>
+      </Grid>
+    </DialogContent>
+    <DialogActions>
+      <Button onClick={() => setNewAdminDialogOpen(false)}>
+        Cancel
+      </Button>
+      <Button 
+        onClick={handleAddAdmin}
+        variant="contained"
+        disabled={!newAdminData.username || !newAdminData.email || !newAdminData.password || !newAdminData.confirmPassword}
+      >
+        Add Admin
+      </Button>
+    </DialogActions>
+  </Dialog>
+
+  {/* Vendor Details Dialog */}
+  <Dialog
+    open={vendorDetailsOpen}
+    onClose={() => setVendorDetailsOpen(false)}
+    maxWidth="md"
+    fullWidth
+  >
+    <DialogTitle>
+      <Box display="flex" justifyContent="space-between" alignItems="center">
+        <Typography variant="h6">Vendor Details</Typography>
+        <IconButton onClick={() => setVendorDetailsOpen(false)}>
+          <CloseIcon />
+        </IconButton>
+      </Box>
+    </DialogTitle>
+    <DialogContent dividers>
+      {selectedVendor && (
+        <Grid container spacing={3}>
+          <Grid item xs={12} md={6}>
+            <Card>
+              <CardContent>
+                <Typography variant="h6" gutterBottom>
+                  Personal Information
+                </Typography>
+                <Typography><strong>Full Name:</strong> {selectedVendor.full_name}</Typography>
+                <Typography><strong>Username:</strong> {selectedVendor.username}</Typography>
+                <Typography><strong>Email:</strong> {selectedVendor.email}</Typography>
+                <Typography><strong>Phone:</strong> {selectedVendor.phone}</Typography>
+                <Typography><strong>Address:</strong> {selectedVendor.address}</Typography>
+                <Typography><strong>Registration Date:</strong> {new Date(selectedVendor.created_at).toLocaleDateString()}</Typography>
+              </CardContent>
+            </Card>
+          </Grid>
+          
+          <Grid item xs={12} md={6}>
+            <Card>
+              <CardContent>
+                <Typography variant="h6" gutterBottom>
+                  Business Information
+                </Typography>
+                <Typography><strong>Business Name:</strong> {selectedVendor.business_name}</Typography>
+                <Typography><strong>Business Type:</strong> {selectedVendor.business_type}</Typography>
+                <Typography><strong>Tax ID:</strong> {selectedVendor.tax_id}</Typography>
+                <Typography><strong>Bank Name:</strong> {selectedVendor.bank_name}</Typography>
+                <Typography><strong>Account Number:</strong> {selectedVendor.account_number}</Typography>
+                <Typography><strong>Status:</strong> 
+                  <Chip 
+                    label={selectedVendor.is_verified ? 'Verified' : 'Pending'}
+                    color={selectedVendor.is_verified ? 'success' : 'warning'}
+                    size="small"
+                    sx={{ ml: 1 }}
+                  />
+                </Typography>
+              </CardContent>
+            </Card>
+          </Grid>
+          
+          <Grid item xs={12}>
+            <Card>
+              <CardContent>
+                <Typography variant="h6" gutterBottom>
+                  Uploaded Documents
+                </Typography>
+                {selectedVendor.documents && selectedVendor.documents.length > 0 ? (
+                  <Grid container spacing={2}>
+                    {selectedVendor.documents.map((doc, index) => (
+                      <Grid item xs={12} sm={6} md={4} key={index}>
+                        <Card variant="outlined">
+                          <CardContent>
+                            <Typography variant="subtitle2" gutterBottom>
+                              {doc.document_type}
+                            </Typography>
+                            <Typography variant="body2" color="textSecondary">
+                              {doc.file_name}
+                            </Typography>
+                            <Button
+                              size="small"
+                              color="primary"
+                              startIcon={<VisibilityIcon />}
+                              onClick={() => window.open(`/api/documents/${doc.file_path}`, '_blank')}
+                              sx={{ mt: 1 }}
+                            >
+                              View Document
+                            </Button>
+                          </CardContent>
+                        </Card>
+                      </Grid>
+                    ))}
+                  </Grid>
+                ) : (
+                  <Typography color="textSecondary">No documents uploaded</Typography>
+                )}
+              </CardContent>
+            </Card>
+          </Grid>
+        </Grid>
+      )}
+    </DialogContent>
+    <DialogActions>
+      {selectedVendor && !selectedVendor.is_verified && (
+        <>
+          <Button
+            onClick={() => handleVendorAction(selectedVendor.id, 'approve')}
+            color="success"
+            variant="contained"
+            startIcon={<CheckIcon />}
+          >
+            Approve Vendor
+          </Button>
+          <Button
+            onClick={() => handleVendorAction(selectedVendor.id, 'reject')}
+            color="error"
+            variant="outlined"
+            startIcon={<BlockIcon />}
+          >
+            Reject Vendor
+          </Button>
+        </>
+      )}
+      <Button onClick={() => setVendorDetailsOpen(false)}>
+        Close
+      </Button>
+    </DialogActions>
+  </Dialog>
+
     </Box>
   );
 };

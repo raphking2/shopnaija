@@ -230,6 +230,84 @@ def reject_vendor(vendor_id):
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+@admin_bp.route('/vendors', methods=['POST'])
+@admin_required
+def create_vendor():
+    """Create a new vendor account by admin"""
+    try:
+        data = request.get_json()
+        current_user_id = get_jwt_identity()
+        
+        # Validate required fields
+        required_fields = ['username', 'email', 'password', 'business_name']
+        for field in required_fields:
+            if not data.get(field):
+                return jsonify({'error': f'{field} is required'}), 400
+        
+        # Check if user exists
+        if User.query.filter_by(email=data['email']).first():
+            return jsonify({'error': 'Email already registered'}), 400
+        
+        if User.query.filter_by(username=data['username']).first():
+            return jsonify({'error': 'Username already taken'}), 400
+        
+        # Create new vendor user
+        vendor_user = User(
+            username=data['username'],
+            email=data['email'],
+            phone=data.get('phone'),
+            address=data.get('address'),
+            role=UserRole.VENDOR,
+            is_verified=True,
+            verification_token=None
+        )
+        vendor_user.set_password(data['password'])
+        
+        db.session.add(vendor_user)
+        db.session.flush()  # Get user ID
+        
+        # Create vendor profile
+        vendor = Vendor(
+            user_id=vendor_user.id,
+            business_name=data['business_name'],
+            business_email=data.get('business_email', data['email']),
+            business_phone=data.get('business_phone'),
+            business_address=data.get('business_address'),
+            category=data.get('category', 'Other'),
+            status=VendorStatus.APPROVED,  # Admin-created vendors are auto-approved
+            approved_at=datetime.utcnow(),
+            commission_rate=8.0  # Default commission rate
+        )
+        
+        db.session.add(vendor)
+        
+        # Log admin action
+        action = AdminAction(
+            admin_id=current_user_id,
+            action_type='vendor_creation',
+            target_id=None,
+            description=f'Created new vendor: {vendor.business_name} ({vendor_user.email})'
+        )
+        db.session.add(action)
+        
+        db.session.commit()
+        
+        return jsonify({
+            'message': 'Vendor created successfully',
+            'vendor': {
+                'id': vendor.id,
+                'user_id': vendor_user.id,
+                'username': vendor_user.username,
+                'email': vendor_user.email,
+                'business_name': vendor.business_name,
+                'status': vendor.status.value
+            }
+        }), 201
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
+
 @admin_bp.route('/vendors/<int:vendor_id>/suspend', methods=['POST'])
 @admin_required
 def suspend_vendor(vendor_id):

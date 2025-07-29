@@ -505,3 +505,89 @@ def update_vendor_profile():
     except Exception as e:
         db.session.rollback()
         return jsonify({'error': str(e)}), 500
+
+# Withdrawal Management Routes
+@vendor_bp.route('/withdrawals', methods=['GET'])
+@vendor_required
+def get_withdrawal_history():
+    try:
+        current_user_id = get_jwt_identity()
+        vendor = get_vendor_profile(current_user_id)
+        
+        if not vendor:
+            return jsonify({'error': 'Vendor profile not found'}), 404
+        
+        # For now, return mock data since we don't have a Withdrawal model yet
+        # TODO: Implement proper Withdrawal model and table
+        withdrawals = []
+        
+        return jsonify({'withdrawals': withdrawals}), 200
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@vendor_bp.route('/payment-methods', methods=['GET'])
+@vendor_required
+def get_payment_methods():
+    try:
+        current_user_id = get_jwt_identity()
+        vendor = get_vendor_profile(current_user_id)
+        
+        if not vendor:
+            return jsonify({'error': 'Vendor profile not found'}), 404
+        
+        # For now, return mock data based on vendor's bank details
+        payment_methods = []
+        
+        if vendor.bank_name and vendor.account_number:
+            payment_methods.append({
+                'id': 1,
+                'type': 'Bank Transfer',
+                'details': f"{vendor.bank_name} - {vendor.account_number}"
+            })
+        
+        return jsonify({'payment_methods': payment_methods}), 200
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@vendor_bp.route('/withdraw', methods=['POST'])
+@vendor_required
+def request_withdrawal():
+    try:
+        current_user_id = get_jwt_identity()
+        vendor = get_vendor_profile(current_user_id)
+        
+        if not vendor:
+            return jsonify({'error': 'Vendor profile not found'}), 404
+        
+        if vendor.status != VendorStatus.APPROVED:
+            return jsonify({'error': 'Only approved vendors can request withdrawals'}), 400
+        
+        data = request.get_json()
+        amount = data.get('amount')
+        payment_method_id = data.get('payment_method_id')
+        
+        if not amount or amount <= 0:
+            return jsonify({'error': 'Invalid withdrawal amount'}), 400
+        
+        if amount > vendor.current_balance:
+            return jsonify({'error': 'Insufficient balance'}), 400
+        
+        if not payment_method_id:
+            return jsonify({'error': 'Payment method is required'}), 400
+        
+        # For now, just return a success message
+        # TODO: Implement proper withdrawal processing
+        # - Create withdrawal record
+        # - Update vendor balance
+        # - Send notification to admin
+        # - Integrate with payment provider
+        
+        return jsonify({
+            'message': 'Withdrawal request submitted successfully',
+            'reference': f'WD{datetime.utcnow().strftime("%Y%m%d%H%M%S")}'
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500

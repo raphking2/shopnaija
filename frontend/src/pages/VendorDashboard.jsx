@@ -53,6 +53,7 @@ import {
   People
 } from '@mui/icons-material';
 import { motion } from 'framer-motion';
+import { config } from '../constant';
 
 const VendorDashboard = () => {
   const [currentTab, setCurrentTab] = useState(0);
@@ -70,13 +71,22 @@ const VendorDashboard = () => {
     category: '',
     image_url: ''
   });
+  
+  // Withdrawal states
+  const [withdrawalDialogOpen, setWithdrawalDialogOpen] = useState(false);
+  const [withdrawalAmount, setWithdrawalAmount] = useState('');
+  const [withdrawalHistory, setWithdrawalHistory] = useState([]);
+  const [paymentMethods, setPaymentMethods] = useState([]);
+  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState('');
+  
   const isMobile = useMediaQuery('(max-width:600px)');
 
   const menuItems = [
     { label: 'Dashboard', icon: <Dashboard />, value: 0 },
     { label: 'Products', icon: <Inventory />, value: 1 },
     { label: 'Orders', icon: <ShoppingCart />, value: 2 },
-    { label: 'Analytics', icon: <TrendingUp />, value: 3 }
+    { label: 'Financials', icon: <AttachMoney />, value: 3 },
+    { label: 'Analytics', icon: <TrendingUp />, value: 4 }
   ];
 
   const categories = [
@@ -117,6 +127,14 @@ const VendorDashboard = () => {
   useEffect(() => {
     if (currentTab === 2) {
       fetchOrders();
+    }
+  }, [currentTab]);
+
+  // Fetch financial data
+  useEffect(() => {
+    if (currentTab === 3) {
+      fetchWithdrawalHistory();
+      fetchPaymentMethods();
     }
   }, [currentTab]);
 
@@ -228,6 +246,92 @@ const VendorDashboard = () => {
       }
     } catch (error) {
       console.error('Error deleting product:', error);
+    }
+  };
+
+  // Withdrawal functions
+  const fetchWithdrawalHistory = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${config.BASE_URL}/vendor/withdrawals`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setWithdrawalHistory(data.withdrawals || []);
+      }
+    } catch (error) {
+      console.error('Error fetching withdrawal history:', error);
+    }
+  };
+
+  const fetchPaymentMethods = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${config.BASE_URL}/vendor/payment-methods`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setPaymentMethods(data.payment_methods || []);
+      }
+    } catch (error) {
+      console.error('Error fetching payment methods:', error);
+    }
+  };
+
+  const handleWithdrawalRequest = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const amount = parseFloat(withdrawalAmount);
+      
+      if (isNaN(amount) || amount <= 0) {
+        alert('Please enter a valid amount');
+        return;
+      }
+
+      if (amount > (vendorStats.summary?.available_balance || 0)) {
+        alert('Insufficient balance');
+        return;
+      }
+
+      if (!selectedPaymentMethod) {
+        alert('Please select a payment method');
+        return;
+      }
+
+      const response = await fetch(`${config.BASE_URL}/vendor/withdraw`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          amount: amount,
+          payment_method_id: selectedPaymentMethod
+        })
+      });
+
+      if (response.ok) {
+        alert('Withdrawal request submitted successfully');
+        setWithdrawalDialogOpen(false);
+        setWithdrawalAmount('');
+        setSelectedPaymentMethod('');
+        fetchStats(); // Refresh balance
+        fetchWithdrawalHistory();
+      } else {
+        const errorData = await response.json();
+        alert(errorData.error || 'Failed to submit withdrawal request');
+      }
+    } catch (error) {
+      console.error('Error submitting withdrawal request:', error);
+      alert('Failed to submit withdrawal request');
     }
   };
 
@@ -588,6 +692,138 @@ const VendorDashboard = () => {
     </Box>
   );
 
+  const FinancialManagement = () => (
+    <Box sx={{ p: 3 }}>
+      <Typography variant="h4" sx={{ fontWeight: 'bold', color: '#008751', mb: 4 }}>
+        💰 Financial Management
+      </Typography>
+
+      {/* Balance Overview */}
+      <Grid container spacing={3} sx={{ mb: 4 }}>
+        <Grid item xs={12} md={4}>
+          <StatCard
+            title="Available Balance"
+            value={`₦${(vendorStats.summary?.available_balance || 0).toLocaleString()}`}
+            icon={<AttachMoney />}
+            color="#008751"
+          />
+        </Grid>
+        <Grid item xs={12} md={4}>
+          <StatCard
+            title="Total Earnings"
+            value={`₦${(vendorStats.summary?.total_revenue || 0).toLocaleString()}`}
+            icon={<TrendingUp />}
+            color="#1976d2"
+          />
+        </Grid>
+        <Grid item xs={12} md={4}>
+          <StatCard
+            title="Pending Withdrawals"
+            value={withdrawalHistory.filter(w => w.status === 'pending').length}
+            icon={<ShoppingCart />}
+            color="#ff9800"
+          />
+        </Grid>
+      </Grid>
+
+      {/* Withdrawal Section */}
+      <Grid container spacing={3}>
+        <Grid item xs={12} md={6}>
+          <Card sx={{ p: 3, mb: 3 }}>
+            <Typography variant="h6" sx={{ mb: 2, fontWeight: 'bold' }}>
+              Request Withdrawal
+            </Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+              Available Balance: ₦{(vendorStats.summary?.available_balance || 0).toLocaleString()}
+            </Typography>
+            <Button
+              variant="contained"
+              fullWidth
+              onClick={() => setWithdrawalDialogOpen(true)}
+              disabled={(vendorStats.summary?.available_balance || 0) <= 0}
+              sx={{ backgroundColor: '#008751', '&:hover': { backgroundColor: '#006741' } }}
+            >
+              Request Withdrawal
+            </Button>
+          </Card>
+        </Grid>
+
+        <Grid item xs={12} md={6}>
+          <Card sx={{ p: 3, mb: 3 }}>
+            <Typography variant="h6" sx={{ mb: 2, fontWeight: 'bold' }}>
+              Payment Methods
+            </Typography>
+            {paymentMethods.length === 0 ? (
+              <Typography variant="body2" color="text.secondary">
+                No payment methods configured. Please contact support to add payment methods.
+              </Typography>
+            ) : (
+              paymentMethods.map((method, index) => (
+                <Box key={index} sx={{ p: 2, border: '1px solid #e0e0e0', borderRadius: 1, mb: 1 }}>
+                  <Typography variant="body2">
+                    {method.type}: {method.details}
+                  </Typography>
+                </Box>
+              ))
+            )}
+          </Card>
+        </Grid>
+      </Grid>
+
+      {/* Withdrawal History */}
+      <Card sx={{ mt: 3 }}>
+        <Box sx={{ p: 3, borderBottom: '1px solid #e0e0e0' }}>
+          <Typography variant="h6" sx={{ fontWeight: 'bold' }}>
+            Withdrawal History
+          </Typography>
+        </Box>
+        <TableContainer>
+          <Table>
+            <TableHead>
+              <TableRow>
+                <TableCell><strong>Date</strong></TableCell>
+                <TableCell><strong>Amount</strong></TableCell>
+                <TableCell><strong>Status</strong></TableCell>
+                <TableCell><strong>Payment Method</strong></TableCell>
+                <TableCell><strong>Reference</strong></TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {withdrawalHistory.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={5} align="center">
+                    <Typography color="text.secondary">No withdrawal history found</Typography>
+                  </TableCell>
+                </TableRow>
+              ) : (
+                withdrawalHistory.map((withdrawal) => (
+                  <TableRow key={withdrawal.id}>
+                    <TableCell>{new Date(withdrawal.created_at).toLocaleDateString()}</TableCell>
+                    <TableCell>₦{withdrawal.amount.toLocaleString()}</TableCell>
+                    <TableCell>
+                      <Chip
+                        label={withdrawal.status}
+                        color={
+                          withdrawal.status === 'completed' ? 'success' :
+                          withdrawal.status === 'pending' ? 'warning' :
+                          withdrawal.status === 'processing' ? 'info' :
+                          'error'
+                        }
+                        size="small"
+                      />
+                    </TableCell>
+                    <TableCell>{withdrawal.payment_method_type}</TableCell>
+                    <TableCell>{withdrawal.reference || 'N/A'}</TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </TableContainer>
+      </Card>
+    </Box>
+  );
+
   const renderTabContent = () => {
     switch (currentTab) {
       case 0:
@@ -597,6 +833,8 @@ const VendorDashboard = () => {
       case 2:
         return <OrderManagement />;
       case 3:
+        return <FinancialManagement />;
+      case 4:
         return <Typography>Analytics Coming Soon...</Typography>;
       default:
         return <DashboardOverview />;
@@ -680,8 +918,15 @@ const VendorDashboard = () => {
       </Drawer>
 
       {/* Main Content */}
-      <Box sx={{ flexGrow: 1, p: { xs: 2, sm: 3 }, mt: isMobile ? '64px' : 0 }}>
-        <Container maxWidth="xl">
+      <Box sx={{ 
+        flexGrow: 1, 
+        p: { xs: 2, sm: 3 }, 
+        mt: isMobile ? '64px' : 0,
+        minHeight: '100vh',
+        display: 'flex',
+        flexDirection: 'column'
+      }}>
+        <Container maxWidth="xl" sx={{ flexGrow: 1 }}>
           {renderTabContent()}
         </Container>
       </Box>
@@ -767,6 +1012,65 @@ const VendorDashboard = () => {
             sx={{ backgroundColor: '#008751' }}
           >
             {editingProduct ? 'Update' : 'Add'} Product
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Withdrawal Dialog */}
+      <Dialog
+        open={withdrawalDialogOpen}
+        onClose={() => setWithdrawalDialogOpen(false)}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>Request Withdrawal</DialogTitle>
+        <DialogContent>
+          <Box sx={{ mt: 2 }}>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+              Available Balance: ₦{(vendorStats.summary?.available_balance || 0).toLocaleString()}
+            </Typography>
+            
+            <TextField
+              fullWidth
+              label="Withdrawal Amount"
+              type="number"
+              value={withdrawalAmount}
+              onChange={(e) => setWithdrawalAmount(e.target.value)}
+              sx={{ mb: 3 }}
+              inputProps={{ min: 0, max: vendorStats.summary?.available_balance || 0 }}
+            />
+
+            <FormControl fullWidth sx={{ mb: 3 }}>
+              <InputLabel>Payment Method</InputLabel>
+              <Select
+                value={selectedPaymentMethod}
+                label="Payment Method"
+                onChange={(e) => setSelectedPaymentMethod(e.target.value)}
+              >
+                {paymentMethods.map((method) => (
+                  <MenuItem key={method.id} value={method.id}>
+                    {method.type} - {method.details}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+
+            {paymentMethods.length === 0 && (
+              <Alert severity="warning" sx={{ mb: 2 }}>
+                No payment methods available. Please contact support to add payment methods before requesting withdrawals.
+              </Alert>
+            )}
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setWithdrawalDialogOpen(false)}>Cancel</Button>
+          <Button
+            onClick={handleWithdrawalRequest}
+            variant="contained"
+            sx={{ backgroundColor: '#008751' }}
+            disabled={!withdrawalAmount || !selectedPaymentMethod || paymentMethods.length === 0}
+          >
+            Submit Request
           </Button>
         </DialogActions>
       </Dialog>
